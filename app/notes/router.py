@@ -371,6 +371,30 @@ async def download_attachment(
     return FileResponse(str(file_path), media_type=att.mime_type, filename=att.filename)
 
 
+@router.post("/{note_id}/attachments", status_code=201)
+async def add_attachment_to_note(
+    note_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.user_id == user.id))
+    note = result.scalar_one_or_none()
+    if not note:
+        raise HTTPException(404, "Note not found")
+
+    att = await _save_attachment(note_id, file, db)
+    await db.commit()
+    await db.refresh(att)
+    return {
+        "id": att.id,
+        "filename": att.filename,
+        "mime_type": att.mime_type,
+        "size_bytes": att.size_bytes,
+        "extracted_text": att.extracted_text,
+    }
+
+
 @router.post("/import/upnote", status_code=201)
 async def import_upnote(
     file: UploadFile = File(..., alias="file"),
