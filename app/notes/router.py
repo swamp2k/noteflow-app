@@ -395,6 +395,32 @@ async def add_attachment_to_note(
     }
 
 
+@router.delete("/{note_id}/attachments/{att_id}", status_code=204)
+async def delete_attachment(
+    note_id: int,
+    att_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.user_id == user.id))
+    note = result.scalar_one_or_none()
+    if not note:
+        raise HTTPException(404, "Note not found")
+
+    result = await db.execute(select(Attachment).where(Attachment.id == att_id, Attachment.note_id == note_id))
+    att = result.scalar_one_or_none()
+    if not att:
+        raise HTTPException(404, "Attachment not found")
+
+    try:
+        (Path(settings.upload_dir) / att.stored_name).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    await db.delete(att)
+    await db.commit()
+
+
 @router.post("/import/upnote", status_code=201)
 async def import_upnote(
     file: UploadFile = File(..., alias="file"),
