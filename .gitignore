@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# App data
+noteflow.db
+uploads/
+*.log
+
+# Env
+.env
+
+# Editor
+.DS_Store
+*.swp
