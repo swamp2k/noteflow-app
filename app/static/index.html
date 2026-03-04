@@ -927,7 +927,7 @@ async function editAttach(id,input,card){
   for(const file of files){
     try{
       const fd=new FormData(); fd.append('file',file);
-      const att=await fetch(`/api/notes/${id}/attachments`,{method:'POST',body:fd}).then(r=>{if(!r.ok)throw new Error('Upload failed');return r.json();});
+      const att=await fetch(`/api/notes/${id}/attachments`,{method:'POST',body:fd,credentials:'include'}).then(r=>{if(!r.ok)throw new Error('Upload failed');return r.json();});
       // append to the card's attach area
       let attachEl=card.querySelector('.note-attachments');
       if(!attachEl){
