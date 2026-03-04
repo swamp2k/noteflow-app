@@ -5,7 +5,7 @@ import httpx
 
 from app.database import get_db
 from app.models import User
-from app.schemas import UserCreate, UserLogin, UserResponse, TOTPSetupResponse, ApiKeyUpdate
+from app.schemas import UserCreate, UserLogin, UserResponse, TOTPSetupResponse, ApiKeyUpdate, UserPreferences
 from app.dependencies import get_current_user
 from app.config import settings
 import app.auth.service as svc
@@ -127,6 +127,25 @@ async def save_api_key(
 @router.get("/apikey-status")
 async def apikey_status(user: User = Depends(get_current_user)):
     return {"set": bool(user.anthropic_api_key)}
+
+
+@router.get("/preferences")
+async def get_preferences(user: User = Depends(get_current_user)):
+    return user.preferences or {}
+
+
+@router.patch("/preferences")
+async def update_preferences(
+    body: UserPreferences,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    prefs = dict(user.preferences or {})
+    for field, value in body.model_dump(exclude_none=True).items():
+        prefs[field] = value
+    user.preferences = prefs
+    await db.commit()
+    return user.preferences
 
 
 @router.get("/google-enabled")

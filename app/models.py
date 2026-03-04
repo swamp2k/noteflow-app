@@ -27,6 +27,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     anthropic_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    preferences: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default='{}')
 
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     notes: Mapped[list["Note"]] = relationship("Note", back_populates="user", cascade="all, delete-orphan")

@@ -511,7 +511,7 @@
         <div class="settings-section-label">Sharing</div>
         <div class="settings-row" style="border:none;padding:0;flex-direction:column;align-items:flex-start;gap:8px;">
           <span class="settings-row-label">App base URL (for share links)</span>
-          <input type="text" id="sett-base-url" placeholder="https://notes.example.com" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--bg-input);color:var(--text);outline:none;" oninput="localStorage.setItem('baseUrl',this.value)">
+          <input type="text" id="sett-base-url" placeholder="https://notes.example.com" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--bg-input);color:var(--text);outline:none;" oninput="userPrefs.base_url=this.value;api('PATCH','/api/auth/preferences',{base_url:this.value}).catch(()=>{})">
         </div>
       </div>
       <div class="settings-section">
@@ -613,8 +613,9 @@ if(typeof marked!=='undefined') marked.setOptions({breaks:true,gfm:true});
 let currentUser=null, stagedFiles=[], searchTimer=null;
 let currentFilter={type:'all',tag:null}, archiveLoaded=false;
 let notesPage=1, notesTotal=0;
-let imagePreviewsEnabled = localStorage.getItem('imagePreviews') !== 'false';
+let imagePreviewsEnabled = true;
 let currentShareNoteId = null;
+let userPrefs = {};
 const PAGE_SIZE=50;
 
 // Boot
@@ -645,12 +646,22 @@ async function checkGoogle(){
   }catch{}
 }
 
-function showApp(user){
+async function showApp(user){
   currentUser=user;
   document.getElementById('auth-page').style.display='none';
   document.getElementById('app-page').style.display='block';
   document.getElementById('drawer-user-info').textContent=`${user.username} · ${user.email}`;
+  // Load preferences from server and apply them
+  userPrefs = await api('GET','/api/auth/preferences').catch(()=>({}));
+  applyPrefs();
   loadNotes(); loadTags();
+}
+
+function applyPrefs(){
+  imagePreviewsEnabled = userPrefs.image_previews !== false;
+  const nh = userPrefs.note_max_height || 1000;
+  document.documentElement.style.setProperty('--note-max-h', nh+'px');
+  applyTheme(userPrefs.theme || 'Default');
 }
 
 // Auth
@@ -1033,9 +1044,9 @@ async function openSettings(){
     document.getElementById('sett-apikey-input').placeholder=st.set?'(key saved — enter new to replace)':'sk-ant-…';
   }catch{}
   // Load base URL
-  document.getElementById('sett-base-url').value=localStorage.getItem('baseUrl')||'';
+  document.getElementById('sett-base-url').value=userPrefs.base_url||'';
   // Load note height
-  const nh=parseInt(localStorage.getItem('noteMaxHeight'))||1000;
+  const nh=userPrefs.note_max_height||1000;
   document.getElementById('sett-note-height').value=nh;
   document.getElementById('sett-note-height-val').textContent=nh+'px';
   // Load image preview toggle
@@ -1192,7 +1203,7 @@ async function shareNote(id,card){
       card.dataset.is_public='true';
       restoreCardActions(id,card);
     }
-    const base=(localStorage.getItem('baseUrl')||window.location.origin).replace(/\/+$/,'');
+    const base=(userPrefs.base_url||window.location.origin).replace(/\/+$/,'');
     document.getElementById('share-url-input').value=`${base}/api/notes/public/${slug}`;
     currentShareNoteId=id;
     document.getElementById('share-view').style.display='flex';
@@ -1238,16 +1249,18 @@ function previewNoteHeight(v){
   document.getElementById('sett-note-height-val').textContent=v+'px';
   document.documentElement.style.setProperty('--note-max-h',v+'px');
 }
-function saveNoteHeight(){
+async function saveNoteHeight(){
   const v=document.getElementById('sett-note-height').value;
-  localStorage.setItem('noteMaxHeight',v);
   document.documentElement.style.setProperty('--note-max-h',v+'px');
+  userPrefs.note_max_height=parseInt(v);
+  await api('PATCH','/api/auth/preferences',{note_max_height:parseInt(v)}).catch(()=>{});
   toast('Height saved');
 }
-function toggleImagePreviews(on){
+async function toggleImagePreviews(on){
   imagePreviewsEnabled=on;
-  localStorage.setItem('imagePreviews',on?'true':'false');
+  userPrefs.image_previews=on;
   document.getElementById('sett-img-preview-label').textContent=on?'On':'Off';
+  await api('PATCH','/api/auth/preferences',{image_previews:on}).catch(()=>{});
 }
 const THEMES={
   'Default':{},'Nord':{'theme':'nord'},'Solarized Light':{'theme':'solarized-light'},
@@ -1257,24 +1270,23 @@ const THEMES={
 function buildThemeButtons(){
   const container=document.getElementById('sett-themes');
   if(!container)return;
-  const current=localStorage.getItem('theme')||'Default';
+  const current=userPrefs.theme||'Default';
   container.innerHTML=Object.keys(THEMES).map(name=>`
     <button onclick="applyTheme('${name}')" style="padding:6px 13px;border-radius:20px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;border:1px solid var(--border);background:${name===current?'var(--accent)':'var(--bg-input)'};color:${name===current?'white':'var(--text-muted)'};font-weight:${name===current?'500':'400'};transition:all 0.15s;">${name}</button>
   `).join('');
 }
-function applyTheme(name){
+async function applyTheme(name){
   const themeKey=THEMES[name]?.theme||'';
-  // Remove all theme classes
   document.body.className=document.body.className.replace(/theme-\S+/g,'').trim();
   if(themeKey)document.body.classList.add('theme-'+themeKey);
-  localStorage.setItem('theme',name);
+  userPrefs.theme=name;
+  await api('PATCH','/api/auth/preferences',{theme:name}).catch(()=>{});
   buildThemeButtons();
 }
-// Apply saved theme on load:
+// Prefs applied after login via applyPrefs(); no localStorage fallback needed.
 (function(){
-  const saved=localStorage.getItem('theme');
-  if(saved&&saved!=='Default'&&THEMES[saved]?.theme)document.body.classList.add('theme-'+THEMES[saved].theme);
-  const nh=parseInt(localStorage.getItem('noteMaxHeight'))||1000;
+  // nothing to apply before login — applyPrefs() runs in showApp
+  const nh=1000;
   document.documentElement.style.setProperty('--note-max-h',nh+'px');
 })();
 

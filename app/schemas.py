@@ -65,6 +65,13 @@ class ApiKeyUpdate(BaseModel):
     api_key: str
 
 
+class UserPreferences(BaseModel):
+    theme: str | None = None
+    note_max_height: int | None = None
+    image_previews: bool | None = None
+    base_url: str | None = None
+
+
 class NoteListResponse(BaseModel):
     notes: list[NoteResponse]
     total: int
