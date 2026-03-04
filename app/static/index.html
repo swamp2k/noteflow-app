@@ -664,7 +664,13 @@ function applyPrefs(){
   imagePreviewsEnabled = userPrefs.image_previews !== false;
   const nh = userPrefs.note_max_height || 1000;
   document.documentElement.style.setProperty('--note-max-h', nh+'px');
-  applyTheme(userPrefs.theme || 'Default');
+  _applyThemeVisual(userPrefs.theme || 'Default');
+}
+
+function _applyThemeVisual(name){
+  const themeKey=THEMES[name]?.theme||'';
+  document.body.className=document.body.className.replace(/theme-\S+/g,'').trim();
+  if(themeKey)document.body.classList.add('theme-'+themeKey);
 }
 
 // Auth
@@ -1296,9 +1302,7 @@ function buildThemeButtons(){
   `).join('');
 }
 async function applyTheme(name){
-  const themeKey=THEMES[name]?.theme||'';
-  document.body.className=document.body.className.replace(/theme-\S+/g,'').trim();
-  if(themeKey)document.body.classList.add('theme-'+themeKey);
+  _applyThemeVisual(name);
   userPrefs.theme=name;
   await api('PATCH','/api/auth/preferences',{theme:name}).catch(()=>{});
   buildThemeButtons();
